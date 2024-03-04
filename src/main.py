@@ -25,11 +25,14 @@ def main():
   channels_first = args.framework=="pytorch"
 
   if args.cifar10:
-    data = imagedata.Cifar10Dataset(args.cifar10)
+    data = imagedata.Cifar10Dataset(args.cifar10, channels_first=channels_first)
   elif args.cifar100:
     data = imagedata.Cifar100Dataset(args.cifar100, channels_first=channels_first)
   elif args.mnist:
     data = imagedata.MnistDataset(args.mnist, channels_first=channels_first)
+  else:
+    print("No dataset specified")
+    exit(1)
   
   if args.framework == "pytorch":
     pyt_cnn.train_pytorch_cnn(args, data)

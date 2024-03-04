@@ -88,14 +88,14 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
   training data.
   """
 
-  optimizer = torch.optim.Adam(model.parameters(), learning_rate)
+  optimizer = torch.optim.SGD(model.parameters(), learning_rate)
   loss_fn = nn.NLLLoss()
 
   total_loss = 0.0
 
   for i in range(epochs):
     total_loss = 0.0
-    correct = 0
+    accuracy = 0
   
     # Set training mode
     model.train()
@@ -110,26 +110,27 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
       p = time_predict(model, X, log)
       loss = time_backprop(loss_fn, p, y, optimizer, log)
       total_loss += loss
-      correct += (p.argmax(axis=1) == y).type(torch.float).sum().item()
+      accuracy += (p.argmax(axis=1) == y).type(torch.float).sum().item()
 
     train_end = time.perf_counter_ns()
     avg_loss = total_loss / len(training_data_loader)
-    precision = (correct / len(training_data_loader.dataset)) * 100
-    print(f"training epoch {i + 1} avg loss: {avg_loss} accuracy: {precision:0.3f}%")
+    accuracy_pct = (accuracy / len(training_data_loader.dataset)) * 100
+    print(f"training epoch {i + 1} avg loss: {avg_loss} accuracy: {accuracy_pct:0.3f}%")
 
     total_loss = 0.0
-    correct = 0
+    accuracy = 0
 
     # Executes a validation step of unseen training data
     validation_start = time.perf_counter_ns()
-    correct, total_loss = eval(validation_data_loader, model, log)
+    accuracy, total_loss = eval(validation_data_loader, model, log)
     validation_end = time.perf_counter_ns()
 
     avg_loss = total_loss / len(validation_data_loader)
-    precision = (correct / len(validation_data_loader.dataset)) * 100
-    print(f"validation epoch {i + 1} avg loss: {avg_loss} precision: {precision:0.3f}%")
+    accuracy_pct = (accuracy / len(validation_data_loader.dataset)) * 100
+    print(f"validation epoch {i + 1} avg loss: {avg_loss} accuracy: {accuracy_pct:0.3f}%")
 
-    log["epoch"].append((train_end - train_start) + (validation_end - validation_start))
+    if "epoch" in log:
+      log["epoch"].append((train_end - train_start) + (validation_end - validation_start))
 
   save_benchmarks(log, batch_size)
 
@@ -166,7 +167,7 @@ def eval(data_loader, model, log):
   The function uses a helper function `time_predict` to make predictions with the model and log the time taken
   for these predictions. It assumes the loss function used during model training is nn.NLLLoss.
   """
-  correct = 0
+  accuracy = 0
   total_loss = 0.0
   loss_fn = nn.NLLLoss()
 
@@ -180,9 +181,9 @@ def eval(data_loader, model, log):
       total_loss += loss_fn(p, y)
 
        # Calculate the number of correct predictions
-      correct += (p.argmax(1) == y).type(torch.float).sum().item() 
+      accuracy += (p.argmax(1) == y).type(torch.float).sum().item() 
 
-    return correct, total_loss
+    return accuracy, total_loss
 
 def time_predict(model, X, log):
   """
@@ -239,7 +240,7 @@ def save_benchmarks(log, batch_size):
   """
 
   with open("cnn.bench.out", "a") as f:
-    if log["inference"]:
+    if log.get("inference"):
       L = log["inference"]
       if len(L) > 1:
         L = L[1:] # Discard first element due to warmup costs
@@ -248,7 +249,7 @@ def save_benchmarks(log, batch_size):
       f.write(f"batch_inference_range_us|{batch_size}:{min},{avg},{max}\n")
       f.write(f"indiv_inference_range_us:{min//batch_size},{avg//batch_size},{max//batch_size}\n")
 
-    if log["backprop"]:
+    if log.get("backprop"):
       L = log["backprop"]
       if len(L) > 1:
         L = L[1:] # Discard first element due to warmup costs
@@ -257,7 +258,7 @@ def save_benchmarks(log, batch_size):
       f.write(f"batch_backprop_range_us|{batch_size}:{min},{avg},{max}\n")
       f.write(f"indiv_backprop_range_us:{min//batch_size},{avg//batch_size},{max//batch_size}\n")
 
-    if log["epoch"]:
+    if log.get("epoch"):
       L = log["epoch"]
       if len(L) > 1:
         L = L[1:] # Discard first element due to warmup costs
@@ -265,6 +266,6 @@ def save_benchmarks(log, batch_size):
       min, avg, max = find_range_us(L) # Discard first element due to warmup costs
       f.write(f"epoch_range_s|{batch_size}:{min/1000000:.3f},{avg/1000000:.3f},{max/1000000:.3f}\n")
 
-    if log["test"]:
+    if log.get("test"):
       test_time = log["test"]
       f.write(f"test_example_item_us:{test_time/1000:.3f}n")  

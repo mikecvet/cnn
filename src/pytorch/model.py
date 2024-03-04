@@ -134,7 +134,7 @@ class CNN(Module):
 
       # Assuming the output channel size of the last convolutional layer is fixed.
       # For example, if the last conv layer outputs 100 channels:
-      output_channels = 100
+      output_channels = final_out_channels
 
       # Calculate the total number of input features for the first fully-connected layer.
       fc_input_features = int(final_size * final_size * output_channels)

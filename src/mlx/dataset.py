@@ -2,6 +2,24 @@ import mlx.core as mx
 import random
 
 class SplitDataset:
+  """
+  Splits a dataset into training, validation, and testing subsets according to the specified training split ratio.
+
+  This class is designed to facilitate the organization of data for machine learning models by
+  splitting the provided dataset into training, validation, and testing sets. It leverages custom Dataset classes for
+  training and testing data to ensure compatibility with PyTorch's DataLoader for efficient batch processing during model
+  training and evaluation.
+
+  Parameters:
+  - data (ImageData): An ImageData object containing the dataset
+  - device (torch.device): The device (CPU or GPU) where the tensors will be allocated.
+  - training_split (float): The proportion of the dataset to be used for training. The rest will be used for validation.
+
+  Attributes:
+  - training_data (Subset): A torch.utils.data.Subset instance representing the training data.
+  - validation_data (Subset): A torch.utils.data.Subset instance representing the validation data.
+  - test_dataset (TestingData): An instance of the TestingData class containing the testing data.
+  """
   def __init__(self, data, training_split):
     X_train, y_train, X_validation, y_validation = split_training_data(data.X_train(), data.y_train(), training_split)
     self.training_data = Dataset(X_train, y_train)
@@ -10,11 +28,8 @@ class SplitDataset:
 
 class Dataset:
   def __init__(self, X, y):
-    #print(f"type: {type(X)} data: {X[0:100]}")
     self.X = mx.array(X)
     self.y = mx.array(y)
-    #self.X = X
-    #self.y = y
     
   def __len__(self):
     return len(self.X)
@@ -39,13 +54,8 @@ def split_training_data(X, y, training_split):
   random.shuffle(paired)
 
   X, y = zip(*paired)
-  #print(f"X type: {type(X)}:{type(X[0])}{type(X[0][0])}{type(X[0][0][0])}{type(X[0][0][0][0])}")
-  X = mx.array(X) # should the inner lists be confered as well?
+  X = mx.array(X)
   y = mx.array(y)
-  print(f"dataset: X {X.shape} y {y.shape}")
-  #X = convert_to_mlx(X)
-  #y = convert_to_mlx(y)
-  #print(f"len(X) {len(X)} type {type(X)} type X[0] {type(X[0])} type X[0][0] {type(X[0][0])}  type X[0][0][0] {type(X[0][0][0])} type X[0][0][0][0] {type(X[0][0][0][0])}")
 
   split_index = int(training_split * len(X))
 
@@ -55,29 +65,3 @@ def split_training_data(X, y, training_split):
   y_validation = y[split_index:]
 
   return X_train, y_train, X_validation, y_validation
-
-import numpy as np
-# Assuming mlx.array exists and works similarly to how numpy arrays are converted
-import mlx
-
-def convert_to_mlx(nested_np_array, convert_primitive_types=False, depth=0):
-    """
-    Recursively converts a nested structure of numpy arrays into equivalent MLX arrays.
-    
-    Args:
-    nested_np_array: The nested numpy array structure to convert.
-    
-    Returns:
-    The equivalent nested MLX array structure.
-    """
-    # Base case: if the current element is a numpy array, convert it directly
-    if isinstance(nested_np_array, np.ndarray):
-        print(f"returning mx.array {depth}")
-        return mx.array(nested_np_array)
-    # Recursive case: iterate through items if it's an iterable (list or similar)
-    elif isinstance(nested_np_array, (list, tuple)) and isinstance(nested_np_array[0], list):
-        print(f"iterating deeper {depth}")
-        return type(nested_np_array)(convert_to_mlx(item, depth=depth+1) for item in nested_np_array)
-    else:
-      print(f"base item {depth}")
-      return mx.array(nested_np_array)

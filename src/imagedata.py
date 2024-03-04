@@ -1,5 +1,4 @@
 import os
-import sys
 
 import numpy as np
 import pickle
@@ -7,7 +6,8 @@ from torchvision.datasets import MNIST
 
 class ImageData:
   """
-  Wraps image-based datasets and prepares training, testing and label data for easy and consistent retrieval.
+  Wraps image-based datasets and prepares training, testing and label data for easy and consistent retrieval. Ensures compatibility
+  of dataset representation between the pytorch and mlx frameworks.
   """
 
   def X_train(self):
@@ -48,7 +48,7 @@ class Cifar10Dataset(ImageData):
         labels_list.append(batch['labels'])
     
     self._X_train = np.concatenate(data_list)
-    self._y_train = np.concatenate(labels_list)
+    self._y_train = np.concatenate(labels_list).tolist()
 
     with open(os.path.join(path, 'batches.meta'), 'rb') as file:
       self._labels = pickle.load(file, encoding='latin1')
@@ -100,7 +100,7 @@ class Cifar100Dataset(ImageData):
 
   def __init__(self, path, channels_first=True):
     super(Cifar100Dataset, self).__init__()
-    print(f"loading cifar-100 data from [{path}]...")
+
     # Training data
     training_data = pickle.load(open(os.path.join(path, "train"), 'rb'), encoding='latin1')
 
@@ -130,7 +130,6 @@ class Cifar100Dataset(ImageData):
     self._X_test = ((self._X_test - mean) / std).tolist()
 
     print("loading complete")
-    #print(f"imagedata type: {type(self._X_train)}{type(self._X_train[0])}{type(self._X_train[0][0])}{type(self._X_train[0][0][0])}{type(self._X_train[0][0][0][0])}")
   
   # Implement ImageData interface
     
@@ -157,7 +156,6 @@ class Cifar100Dataset(ImageData):
   
 class MnistDataset(ImageData):
   def __init__(self, path, channels_first=True):
-    #training_data = MNIST(root=path, train=True, download=True).data.numpy()
 
     if channels_first:
       self._X_train = MNIST(root=path, train=True, download=True).data.numpy().reshape(-1, 1, 28, 28).astype(float).tolist()
