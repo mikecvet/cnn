@@ -1,13 +1,72 @@
 import argparse
 import imagedata
-from pytorch import cnn as pyt_cnn
 from mlx import cnn as mlx_cnn
+from pytorch import cnn as pyt_cnn
+import sys
 
-DEFAULT_INIT_LR = 1e-3
 DEFAULT_BATCH_SIZE = 64
-DEFAULT_EPOCHS = 10
-DEFAULT_TRAINING_SPLIT = 0.9
-DEFAULT_VALIDATION_SPLIT = 1.0 - DEFAULT_TRAINING_SPLIT
+
+def find_range_us(L):
+  """
+  Given a list of what is assumed to be nanoseconds, finds the minimum and maximum elements, as well as
+  calculates the average value. Returns results divided by a thousand, which returns results in 
+  microseconds rather than nanoseconds.
+  """
+  min = sys.maxsize
+  max = 0
+  sum = 0
+
+  for e in L:
+    if e > max:
+      max = e
+    
+    if e < min:
+      min = e
+    
+    sum += e
+  
+  return min // 1000, sum // len(L) // 1000, max // 1000
+
+def save_benchmarks(log, prefix, batch_size):
+  """
+  Write benchmark data to disk
+  """
+  with open(prefix + ".cnn.bench.out", "a") as f:
+    if log.get("inference"):
+      L = log["inference"]
+      if len(L) > 1:
+        L = L[1:] # Discard first element due to warmup costs
+
+      min, avg, max = find_range_us(L) 
+      f.write(f"batch_inference_range_us|{batch_size}:{min},{avg},{max}\n")
+      f.write(f"indiv_inference_range_us:{min//batch_size},{avg//batch_size},{max//batch_size}\n")
+
+    if log.get("backprop"):
+      L = log["backprop"]
+      if len(L) > 1:
+        L = L[1:] # Discard first element due to warmup costs
+
+      min, avg, max = find_range_us(L)
+      f.write(f"batch_backprop_range_us|{batch_size}:{min},{avg},{max}\n")
+      f.write(f"indiv_backprop_range_us:{min//batch_size},{avg//batch_size},{max//batch_size}\n")
+
+    if log.get("epoch"):
+      L = log["epoch"]
+      if len(L) > 1:
+        L = L[1:] # Discard first element due to warmup costs
+
+      min, avg, max = find_range_us(L) # Discard first element due to warmup costs
+      f.write(f"epoch_range_s|{batch_size}:{min/1000000:.3f},{avg/1000000:.3f},{max/1000000:.3f}\n")
+
+    if log.get("test"):
+      test_time = log["test"][0]
+      f.write(f"test_example_item_us:{test_time/1000:.3f}\n")
+
+    if log.get("loss") and log.get("accuracy"):
+      loss = log["loss"]
+      acc = log["accuracy"]
+      f.write(f"loss: {loss}\n")
+      f.write(f"accuracy: {acc}\n")
 
 def main():
   parser = argparse.ArgumentParser()
@@ -34,13 +93,18 @@ def main():
     print("No dataset specified")
     exit(1)
   
+  log = {}
+
   if args.framework == "pytorch":
-    pyt_cnn.train_pytorch_cnn(args, data)
+    log = pyt_cnn.train_pytorch_cnn(args, data)
   elif args.framework == "mlx":
-    mlx_cnn.train_mlx_cnn(args, data)
+    log = mlx_cnn.train_mlx_cnn(args, data)
   else:
     print(f"No ML framework specified")
     exit(1)
+
+  if args.bench:
+    save_benchmarks(log, args.framework, args.batch or DEFAULT_BATCH_SIZE)  
 
 if __name__ == '__main__':
   main()

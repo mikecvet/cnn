@@ -1,5 +1,4 @@
 from . import dataset, model
-import sys
 import time
 import torch
 import torch.nn as nn
@@ -14,12 +13,12 @@ DEFAULT_VALIDATION_SPLIT = 1.0 - DEFAULT_TRAINING_SPLIT
 
 def train_pytorch_cnn(args, data):
   """
-  Trains a CNN based on given arguments and data. Creates training, validation and test datasets, and then
+  Trains a pytorch-based CNN model based on given arguments and data. Creates training, validation and test datasets, and then
   runs training and evaluation based on that data.
   """
   if args.bench:
     # Initialize the log dict with entries for tracking
-    log = { "inference": [], "backprop": [], "epoch": [], "test": [] }
+    log = { "inference": [], "backprop": [], "epoch": [], "test": [], "loss": [], "accuracy": []}
   else:
     log = {}
 
@@ -34,6 +33,8 @@ def train_pytorch_cnn(args, data):
   cnn = model.CNN(data.channels(), data.dim(), len(data.labels())).to(device)
   train(training_data_loader, validation_data_loader, cnn, args.epochs or DEFAULT_EPOCHS, batch_size or DEFAULT_BATCH_SIZE, args.lr or DEFAULT_INIT_LR, log)
   test(test_data_loader, cnn, log)
+
+  return log
 
 def detect_device(args):
   """
@@ -88,7 +89,7 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
   training data.
   """
 
-  optimizer = torch.optim.SGD(model.parameters(), learning_rate)
+  optimizer = torch.optim.Adam(model.parameters(), learning_rate)
   loss_fn = nn.NLLLoss()
 
   total_loss = 0.0
@@ -113,6 +114,7 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
       accuracy += (p.argmax(axis=1) == y).type(torch.float).sum().item()
 
     train_end = time.perf_counter_ns()
+
     avg_loss = total_loss / len(training_data_loader)
     accuracy_pct = (accuracy / len(training_data_loader.dataset)) * 100
     print(f"training epoch {i + 1} avg loss: {avg_loss} accuracy: {accuracy_pct:0.3f}%")
@@ -121,20 +123,34 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
     accuracy = 0
 
     # Executes a validation step of unseen training data
-    validation_start = time.perf_counter_ns()
-    accuracy, total_loss = eval(validation_data_loader, model, log)
-    validation_end = time.perf_counter_ns()
-
-    avg_loss = total_loss / len(validation_data_loader)
+    accuracy, _ = eval(validation_data_loader, model, log)
     accuracy_pct = (accuracy / len(validation_data_loader.dataset)) * 100
-    print(f"validation epoch {i + 1} avg loss: {avg_loss} accuracy: {accuracy_pct:0.3f}%")
 
     if "epoch" in log:
-      log["epoch"].append((train_end - train_start) + (validation_end - validation_start))
+      log["epoch"].append(train_end - train_start)
+      log["loss"].append(avg_loss.item())
+      log["accuracy"].append(accuracy_pct)
 
-  save_benchmarks(log, batch_size)
+    print(f"validation epoch {i + 1} accuracy: {accuracy_pct:0.3f}%")
 
 def test(data_loader, model, log):
+  """
+  Conducts a test to evaluate the CNN model's performance on a test dataset.
+
+  This function leverages the `eval` function to calculate the accuracy of the model on the given dataset,
+  logging the time taken to complete the test. It updates the log dictionary with the duration of the test
+  execution. Finally, it prints out the model's accuracy on the test dataset.
+
+  Parameters:
+  - data_loader (DataLoader): A DataLoader instance containing the test dataset.
+  - model (Module): The CNN model to be tested.
+  - log (dict): A dictionary for logging performance metrics. If benchmarking is enabled, the dictionary should 
+    have a key "test" where the test execution time will be appended.
+
+  The function calculates the test accuracy by dividing the total number of correct predictions by the
+  total number of items in the dataset, multiplying by 100 to get a percentage. This accuracy is then printed
+  to the console.
+  """  
   print ("testing ...")
 
   test_start = time.perf_counter_ns()
@@ -142,7 +158,7 @@ def test(data_loader, model, log):
   test_end = time.perf_counter_ns()
 
   if "test" in log:
-    log["test"].append((test_end - test_start) // len(data_loader.dataset))
+    log["test"].append(test_end - test_start)
 
   print(f"Final test dataset accuracy: {(accuracy / len(data_loader)) * 100:0.3f}%")
 
@@ -213,59 +229,3 @@ def time_backprop(loss_fn, p, y, optimizer, log):
     log["backprop"].append(ns)
 
   return loss
-
-def find_range_us(L):
-  """
-  Given a list of what is assumed to be numbers, finds the minimum and maximum elements, as well as
-  calculates the average value.
-  """
-  min = sys.maxsize
-  max = 0
-  sum = 0
-
-  for e in L:
-    if e > max:
-      max = e
-    
-    if e < min:
-      min = e
-    
-    sum += e
-  
-  return min // 1000, sum // len(L) // 1000, max // 1000
-
-def save_benchmarks(log, batch_size):
-  """
-  Write benchmark data to disk
-  """
-
-  with open("cnn.bench.out", "a") as f:
-    if log.get("inference"):
-      L = log["inference"]
-      if len(L) > 1:
-        L = L[1:] # Discard first element due to warmup costs
-
-      min, avg, max = find_range_us(L) 
-      f.write(f"batch_inference_range_us|{batch_size}:{min},{avg},{max}\n")
-      f.write(f"indiv_inference_range_us:{min//batch_size},{avg//batch_size},{max//batch_size}\n")
-
-    if log.get("backprop"):
-      L = log["backprop"]
-      if len(L) > 1:
-        L = L[1:] # Discard first element due to warmup costs
-
-      min, avg, max = find_range_us(L)
-      f.write(f"batch_backprop_range_us|{batch_size}:{min},{avg},{max}\n")
-      f.write(f"indiv_backprop_range_us:{min//batch_size},{avg//batch_size},{max//batch_size}\n")
-
-    if log.get("epoch"):
-      L = log["epoch"]
-      if len(L) > 1:
-        L = L[1:] # Discard first element due to warmup costs
-
-      min, avg, max = find_range_us(L) # Discard first element due to warmup costs
-      f.write(f"epoch_range_s|{batch_size}:{min/1000000:.3f},{avg/1000000:.3f},{max/1000000:.3f}\n")
-
-    if log.get("test"):
-      test_time = log["test"]
-      f.write(f"test_example_item_us:{test_time/1000:.3f}n")  
