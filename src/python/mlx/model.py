@@ -4,10 +4,7 @@ from mlx.nn import Module
 from mlx.nn import Conv2d
 from mlx.nn import Linear
 from mlx.nn import MaxPool2d
-from mlx.nn import AvgPool2d
 from mlx.nn import ReLU
-from mlx.nn import LeakyReLU
-from mlx.nn import LogSoftmax
 import mlx.core as mx
 import mlx.nn as nn
 
@@ -16,7 +13,7 @@ class CNN(Module):
   A custom Convolutional Neural Network (CNN) designed for image classification tasks, 
   built using PyTorch's nn.Module. This network architecture can be applied to a variety of 
   image datasets such as CIFAR and MNIST (where it is easily able to achieve 99%+ accuracy), 
-  though it underperforms compared to more sophisticated model architectures such as Resnet. 
+  though it underperforms compared to more sophisticated model architectures such as ResNet. 
 
   The model consists of several convolutional layers followed by max pooling to extract 
   features, and fully connected layers for classification. Dropout layers are included to 
@@ -80,8 +77,6 @@ class CNN(Module):
     # Sixth block: Linear => Dropout layers
     self.linear3 = Linear(input_dims=fully_connected_input_size // 4, output_dims=classes)
     self.dropout3 = Dropout(p=0.3)
-
-    #self.logSoftmax = LogSoftmax(dim=1)
 
   def __call__(self, X):
     # First block: Conv => ReLU => MaxPool

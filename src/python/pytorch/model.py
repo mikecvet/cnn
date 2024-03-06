@@ -12,7 +12,7 @@ class CNN(Module):
   A custom Convolutional Neural Network (CNN) designed for image classification tasks, 
   built using PyTorch's nn.Module. This network architecture can be applied to a variety of 
   image datasets such as CIFAR and MNIST (where it is easily able to achieve 99%+ accuracy), 
-  though it underperforms compared to more sophisticated model architectures such as Resnet. 
+  though it underperforms compared to more sophisticated model architectures such as ResNet. 
 
   The model consists of several convolutional layers followed by max pooling to extract 
   features, and fully connected layers for classification. Dropout layers are included to 
