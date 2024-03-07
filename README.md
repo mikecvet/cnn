@@ -1,6 +1,42 @@
-# CNN
+# Parallel Implementations of a Convolutional Neural Network with PyTorch and Apple's MLX
 
-This repository contians parallel implementations of a bespoke convolutional neural network leveraging both PyTorch and MLX. 
+This repository contains parallel implementations of a bespoke convolutional neural network leveraging both [PyTorch](https://pytorch.org/docs/stable/index.html) and [MLX](https://ml-explore.github.io/mlx/build/html/index.html).
+
+This code supports running training and classification against the MNIST, CIFAR-10, and CIFAR-100 datasets, via the [ImageData](https://github.com/mikecvet/cnn/blob/main/src/python/imagedata.py) class. This is then used in both implementations [1](https://github.com/mikecvet/cnn/tree/main/src/python/pytorch) [2](https://github.com/mikecvet/cnn/tree/main/src/python/mlx) to organize training, validation and testing datasets. This model should be able to hit 99.1%+ accuracy on the MNIST dataset, and 30-40%+ on the CIFAR datasets.
+
+Here is the model architecture, taken from [src/python/pytorch/model.py](https://github.com/mikecvet/cnn/blob/main/src/python/pytorch/model.py): 
+
+```
+    # First block: Conv => ReLU => MaxPool
+    self.conv1 = Conv2d(in_channels=channels, out_channels=20, kernel_size=(5, 5), padding=2)
+    self.relu1 = ReLU()
+    self.maxpool1 = MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+
+    # Second block: Conv => ReLU => MaxPool
+    self.conv2 = Conv2d(in_channels=20, out_channels=50, kernel_size=(5, 5), padding=2)
+    self.relu2 = ReLU()
+    self.maxpool2 = MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+
+    # Third block: Conv => ReLU => MaxPool layers
+    self.conv3 = Conv2d(in_channels=50, out_channels=final_out_channels, kernel_size=(5, 5), padding=2)
+    self.relu3 = ReLU()
+    self.maxpool3 = MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
+
+    # Fourth block: Linear => Dropout => ReLU layers
+    self.linear1 = Linear(in_features=fully_connected_input_size, out_features=fully_connected_input_size // 2)
+    self.dropout1 = Dropout(p=0.3)
+    self.relu3 = ReLU()
+
+    # Fifth block: Linear => Dropout layers
+    self.linear2 = Linear(in_features=fully_connected_input_size // 2, out_features=fully_connected_input_size // 4)
+    self.dropout2 = Dropout(p=0.3)
+
+    # Sixth block: Linear => Dropout layers
+    self.linear3 = Linear(in_features=fully_connected_input_size // 4, out_features=classes)
+    self.dropout3 = Dropout(p=0.3)
+
+    self.logSoftmax = LogSoftmax(dim=1)
+```
 
 An example run here, which trains a new pytorch-based model on the MNIST dataset, and then tests its accuracy after 10 epochs:
 ```
