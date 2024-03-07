@@ -1,5 +1,6 @@
 from . import dataset, model
 from functools import partial
+import math
 import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as optimizers
@@ -12,27 +13,23 @@ DEFAULT_EPOCHS = 10
 DEFAULT_TRAINING_SPLIT = 0.9
 DEFAULT_VALIDATION_SPLIT = 1.0 - DEFAULT_TRAINING_SPLIT
 
-def train_mlx_cnn(args, data):
+def train_mlx_cnn(args, data, log):
   """
   Trains an MLX-based CNN model based on given arguments and data. Creates training, validation and test datasets, and then
   runs training and evaluation based on that data.
   """
-  if args.bench:
-    # Initialize the log dict with entries for tracking
-    log = { "inference": [], "backprop": [], "epoch": [], "test": [], "loss": [], "accuracy": [] }
-  else:
-    log = {}
-
   batch_size = args.batch or DEFAULT_BATCH_SIZE
+  
   ds = dataset.SplitDataset(data, training_split=DEFAULT_TRAINING_SPLIT)
   training_data_loader = dataset.DataLoader(ds.training_data, batch_size=batch_size)
   validation_data_loader = dataset.DataLoader(ds.validation_data, batch_size=batch_size)
-  test_data_loader = dataset.DataLoader(ds.test_dataset, batch_size=1)
+  test_data_loader = dataset.DataLoader(ds.test_dataset, batch_size=batch_size)
 
   cnn = model.CNN(data.channels(), data.dim(), len(data.labels()))
-  train(training_data_loader, validation_data_loader, cnn, args.epochs or DEFAULT_EPOCHS, batch_size, args.lr or DEFAULT_INIT_LR, log)
-  test(test_data_loader, cnn, log)
 
+  train(training_data_loader, validation_data_loader, cnn, args.epochs or DEFAULT_EPOCHS, batch_size, args.lr or DEFAULT_INIT_LR, log)
+  test(test_data_loader, cnn, batch_size, log)
+  
   return log
 
 def train(training_data_loader, validation_data_loader, model, epochs, batch_size, learning_rate, log):
@@ -64,7 +61,7 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
   5. Calculates and logs the average validation loss and accuracy.
   """
   optimizer = optimizers.Adam(learning_rate)
-  state = [model.state, optimizer.state]
+  state = [model.state, optimizer.state, mx.random.state]
 
   mx.eval(model.parameters())
 
@@ -94,6 +91,7 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
     (loss, acc), grads = train_step_fn(model, X, y)
     optimizer.update(model, grads)
     return loss, acc
+  # End step()
   
   total_loss = 0.0
 
@@ -106,7 +104,7 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
     model.train() 
     
     # Number of training batches to process
-    n = len(training_data_loader.dataset) // batch_size + 1
+    n = math.ceil(len(training_data_loader.dataset) / batch_size)
 
     # Train over batches
     # tqdm renders a progress bar while these batches are processed
@@ -125,7 +123,8 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
     print(f"training epoch {i + 1} avg loss: {avg_loss} accuracy: {accuracy_pct:0.3f}%")
 
     # Validation with unseen test data
-    accuracy, _ = eval(validation_data_loader, model, len(validation_data_loader.dataset) // batch_size + 1)
+    
+    accuracy, _ = eval(validation_data_loader, model, len(validation_data_loader))
     accuracy_pct = (accuracy.item() / len(validation_data_loader.dataset)) * 100
 
     if "epoch" in log:
@@ -135,7 +134,7 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
 
     print(f"validation epoch {i + 1} accuracy: {accuracy_pct:0.3f}%")
 
-def test(test_data_loader, model, log):
+def test(test_data_loader, model, batch_size, log):
   """
   Conducts a test to evaluate the CNN model's performance on a test dataset.
 
@@ -153,16 +152,17 @@ def test(test_data_loader, model, log):
   total number of items in the dataset, multiplying by 100 to get a percentage. This accuracy is then printed
   to the console.
   """
-  print ("testing ...")
+  print (f"testing ...")
 
   test_start = time.perf_counter_ns()
-  accuracy, loss = eval(test_data_loader, model, len(test_data_loader))
+  accuracy, _ = eval(test_data_loader, model, math.ceil(len(test_data_loader) / batch_size))
+  mx.eval(accuracy) # Force calculation within measurement block
   test_end = time.perf_counter_ns()   
 
   if "test" in log:
     log["test"].append(test_end - test_start)
 
-  print(f"Final test dataset accuracy: {(accuracy.item() / len(test_data_loader)) * 100:0.3f}% loss: {loss.item() / len(test_data_loader)}")
+  print(f"Final test dataset accuracy: {(accuracy.item() / len(test_data_loader.dataset)) * 100:0.3f}%")
 
 def eval(data_loader, model, n):
   """
@@ -198,9 +198,6 @@ def eval(data_loader, model, n):
     accuracy += acc
 
   return accuracy, total_loss
-
-def loss_fn(p, y):
-  return nn.losses.nll_loss(p, y)
 
 def loss_and_accuracy(model, X, y):
   """

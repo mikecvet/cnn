@@ -1,4 +1,3 @@
-import math
 from mlx.nn import Dropout
 from mlx.nn import Module
 from mlx.nn import Conv2d

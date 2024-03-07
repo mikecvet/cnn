@@ -11,7 +11,7 @@ def extract_data(filename):
     epoch_times_matches = re.findall(r'epoch_range_s\|\d+:(\d+\.\d+),(\d+\.\d+),(\d+\.\d+)', content)
     epoch_times = [list(map(float, match)) for match in epoch_times_matches][0] if epoch_times_matches else [0, 0, 0]
 
-    test_time_match = re.search(r'test_example_item_us:(\d+\.\d+)', content)
+    test_time_match = re.search(r'test_run_ms:(\d+\.\d+)', content)
     test_time = float(test_time_match.group(1)) if test_time_match else 0
     
     loss_match = re.search(r'loss: \[([^\]]+)\]', content)
@@ -30,15 +30,15 @@ def plot_graphs(data):
         axs[0].errorbar(i, np.mean(epoch_times), yerr=[[np.mean(epoch_times) - min(epoch_times)], [max(epoch_times) - np.mean(epoch_times)]], fmt='o', label=label)
     axs[0].set_xticks(range(len(data)))
     axs[0].set_xticklabels(data.keys())
-    axs[0].set_title('Epoch Training Time Intervals')
+    axs[0].set_title('Epoch Training Time Intervals, 512 batch (min, mean, max)')
     axs[0].set_ylabel('Time (s)')
     axs[0].legend()
 
     # Graph 2: Test dataset processing times
     test_times = [values[1] for values in data.values()]
     axs[1].bar(data.keys(), test_times, color=['tab:blue', 'tab:orange', 'tab:green'])
-    axs[1].set_title('Test Dataset Processing Times')
-    axs[1].set_ylabel('Time (μs)')
+    axs[1].set_title('Test Dataset (10k) Processing Time (batch image classification)')
+    axs[1].set_ylabel('Time (ms)')
 
     # Graph 3: Accuracy over time
     for label, values in data.items():

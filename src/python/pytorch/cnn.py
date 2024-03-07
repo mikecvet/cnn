@@ -1,7 +1,9 @@
 from . import dataset, model
+import math
 import time
 import torch
 import torch.nn as nn
+import torch.functional
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
@@ -11,28 +13,23 @@ DEFAULT_EPOCHS = 10
 DEFAULT_TRAINING_SPLIT = 0.9
 DEFAULT_VALIDATION_SPLIT = 1.0 - DEFAULT_TRAINING_SPLIT
 
-def train_pytorch_cnn(args, data):
+def train_pytorch_cnn(args, data, log):
   """
   Trains a pytorch-based CNN model based on given arguments and data. Creates training, validation and test datasets, and then
   runs training and evaluation based on that data.
   """
-  if args.bench:
-    # Initialize the log dict with entries for tracking
-    log = { "inference": [], "backprop": [], "epoch": [], "test": [], "loss": [], "accuracy": []}
-  else:
-    log = {}
-
   batch_size = args.batch or DEFAULT_BATCH_SIZE
   device = detect_device(args)
 
   ds = dataset.SplitDataset(data, device, training_split=DEFAULT_TRAINING_SPLIT)
   training_data_loader = DataLoader(ds.training_data, shuffle=True, batch_size=batch_size)
   validation_data_loader = DataLoader(ds.validation_data, shuffle=True, batch_size=batch_size)
-  test_data_loader = DataLoader(ds.test_dataset, shuffle=False, batch_size=1)
+  test_data_loader = DataLoader(ds.test_dataset, shuffle=False, batch_size=batch_size)
 
   cnn = model.CNN(data.channels(), data.dim(), len(data.labels())).to(device)
+
   train(training_data_loader, validation_data_loader, cnn, args.epochs or DEFAULT_EPOCHS, batch_size or DEFAULT_BATCH_SIZE, args.lr or DEFAULT_INIT_LR, log)
-  test(test_data_loader, cnn, log)
+  test(test_data_loader, cnn, batch_size, log)
 
   return log
 
@@ -102,7 +99,7 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
     model.train()
 
     # Number of training batches to process
-    n = len(training_data_loader.dataset) // batch_size + 1
+    n = math.ceil(len(training_data_loader.dataset) / batch_size)
 
     train_start = time.perf_counter_ns()
 
@@ -123,7 +120,7 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
     accuracy = 0
 
     # Executes a validation step of unseen training data
-    accuracy, _ = eval(validation_data_loader, model, log)
+    accuracy, _ = eval(validation_data_loader, model, math.ceil(len(validation_data_loader) / batch_size), log)
     accuracy_pct = (accuracy / len(validation_data_loader.dataset)) * 100
 
     if "epoch" in log:
@@ -133,7 +130,7 @@ def train(training_data_loader, validation_data_loader, model, epochs, batch_siz
 
     print(f"validation epoch {i + 1} accuracy: {accuracy_pct:0.3f}%")
 
-def test(data_loader, model, log):
+def test(data_loader, model, batch_size, log):
   """
   Conducts a test to evaluate the CNN model's performance on a test dataset.
 
@@ -154,15 +151,15 @@ def test(data_loader, model, log):
   print ("testing ...")
 
   test_start = time.perf_counter_ns()
-  accuracy, _ = eval(data_loader, model, log)
+  accuracy, _ = eval(data_loader, model, math.ceil(len(data_loader) / batch_size), log)
   test_end = time.perf_counter_ns()
 
   if "test" in log:
     log["test"].append(test_end - test_start)
 
-  print(f"Final test dataset accuracy: {(accuracy / len(data_loader)) * 100:0.3f}%")
+  print(f"Final test dataset accuracy: {(accuracy / math.ceil(len(data_loader) / batch_size)) * 100:0.3f}%")
 
-def eval(data_loader, model, log):
+def eval(data_loader, model, n, log):
   """
   Evaluates the performance of the CNN model on a given dataset.
 
@@ -192,7 +189,7 @@ def eval(data_loader, model, log):
   
   # Disable gradient calculations during inference workloads
   with torch.no_grad():
-    for _, (X, y) in tqdm(enumerate(data_loader), total=len(data_loader)):
+    for _, (X, y) in tqdm(enumerate(data_loader), total=n):
       p = time_predict(model, X, log)
       total_loss += loss_fn(p, y)
 
@@ -203,7 +200,7 @@ def eval(data_loader, model, log):
 
 def time_predict(model, X, log):
   """
-  Runs inference and tracks execution time for the given mdoel.
+  Runs inference and tracks execution time for the given model.
   """
   t0 = time.perf_counter_ns()
   p = model(X)
@@ -216,7 +213,7 @@ def time_predict(model, X, log):
 
 def time_backprop(loss_fn, p, y, optimizer, log):
   """
-  Runs calculates loss, runs backpropagation and tracks execution time for the given mdoel.
+  Runs calculates loss, runs backpropagation and tracks execution time for the given model.
   """
   t0 = time.perf_counter_ns()
   loss = loss_fn(p, y)

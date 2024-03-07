@@ -60,7 +60,7 @@ def save_benchmarks(log, prefix, batch_size):
 
     if log.get("test"):
       test_time = log["test"][0]
-      f.write(f"test_example_item_us:{test_time/1000:.3f}\n")
+      f.write(f"test_run_ms:{test_time//1000000:.3f}\n")
 
     if log.get("loss") and log.get("accuracy"):
       loss = log["loss"]
@@ -93,18 +93,22 @@ def main():
     print("No dataset specified")
     exit(1)
   
-  log = {}
+  if args.bench:
+    # Initialize the log dict with entries for tracking
+    log = { "inference": [], "backprop": [], "epoch": [], "test": [], "loss": [], "accuracy": []}
+  else:
+    log = {}
 
   if args.framework == "pytorch":
-    log = pyt_cnn.train_pytorch_cnn(args, data)
+    log = pyt_cnn.train_pytorch_cnn(args, data, log)
   elif args.framework == "mlx":
-    log = mlx_cnn.train_mlx_cnn(args, data)
+    log = mlx_cnn.train_mlx_cnn(args, data, log)
   else:
     print(f"No ML framework specified")
     exit(1)
 
   if args.bench:
-    save_benchmarks(log, args.framework, args.batch or DEFAULT_BATCH_SIZE)  
+    save_benchmarks(log, args.framework + "." + args.device, args.batch or DEFAULT_BATCH_SIZE)  
 
 if __name__ == '__main__':
   main()
