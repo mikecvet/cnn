@@ -157,7 +157,7 @@ def test(data_loader, model, batch_size, log):
   if "test" in log:
     log["test"].append(test_end - test_start)
 
-  print(f"Final test dataset accuracy: {(accuracy / math.ceil(len(data_loader) / batch_size)) * 100:0.3f}%")
+  print(f"Final test dataset accuracy: {(accuracy / len(data_loader)) * 100:0.3f}%")
 
 def eval(data_loader, model, n, log):
   """
