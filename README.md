@@ -4,6 +4,8 @@ This repository contains parallel implementations of a bespoke convolutional neu
 
 This code supports running training and classification against the MNIST, CIFAR-10, and CIFAR-100 datasets, via the [ImageData](https://github.com/mikecvet/cnn/blob/main/src/python/imagedata.py) class. This is then used in both implementations [1](https://github.com/mikecvet/cnn/tree/main/src/python/pytorch) [2](https://github.com/mikecvet/cnn/tree/main/src/python/mlx) to organize training, validation and testing datasets. This model should be able to hit 99.2%+ accuracy on the MNIST dataset, and 30-40%+ accuracy on the CIFAR datasets.
 
+This codebase is discussed in this blog post: [PyTorch and MLX for Apple Silicon](https://towardsdatascience.com/pytorch-and-mlx-for-apple-silicon-4f35b9f60e39)
+
 <img width="1093" alt="acc_and_loss" src="https://github.com/mikecvet/cnn/assets/275631/35f965e8-b441-433a-a95f-30ff8bf4e8d0">
 
 Here is the model architecture, taken from [src/python/pytorch/model.py](https://github.com/mikecvet/cnn/blob/main/src/python/pytorch/model.py): 
